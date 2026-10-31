@@ -2,7 +2,7 @@
 
 ドイツ陸軍用エニグマI型を、実際のローター配線で計算して動かす3Dシミュレーターです。1打鍵ごとに、キー → プラグボード → 3枚のローター → 反転ローター → ランプの電流経路を3Dと模式図で表示します。
 
-**デモ：** https://tokyobranding-max.github.io/enigma-simulator/
+**デモ：** https://tokyobranding.org/enigma-simulator/
 
 ## できること
 
