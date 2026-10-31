@@ -1,0 +1,995 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}*,*::before,*::after{box-sizing:border-box}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>ENIGMA I 分解シミュレーター</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700&family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a pale study-model studio — the machine owns the left stage, a console of live instruments runs down the right. */
+:root{
+  --bg:#e7e9e3; --panel:#f5f6f2; --ink:#1c201b; --muted:#5d6559; --line:#cdd2c7;
+  --accent:#c97d0c; --accent-soft:#f3dfb8; --ret:#2a6d8e; --ret-soft:#cfe2ec;
+  --display:"Saira Condensed","Arial Narrow",sans-serif;
+  --body:"Noto Sans JP","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#141613; --panel:#1d201c; --ink:#e4e7df; --muted:#9aa294; --line:#30352e;
+  --accent:#f0a432; --accent-soft:#4a3613; --ret:#6cb2d6; --ret-soft:#1d3744; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141613; --panel:#1d201c; --ink:#e4e7df; --muted:#9aa294; --line:#30352e;
+  --accent:#f0a432; --accent-soft:#4a3613; --ret:#6cb2d6; --ret-soft:#1d3744; color-scheme:dark}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.55}
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px 24px;max-width:1680px;margin:0 auto}
+header.top{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 18px;margin-bottom:12px}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(28px,4vw,44px);letter-spacing:.04em;line-height:1;margin:0}
+h1 span{color:var(--accent)}
+.sub{color:var(--muted);font-size:13px;max-width:70ch;text-wrap:balance}
+.app{display:grid;grid-template-columns:minmax(0,1fr) 370px;gap:14px;align-items:start}
+@media (max-width:980px){.app{grid-template-columns:minmax(0,1fr)}}
+.stage{position:relative;height:clamp(440px,calc(100vh - 110px),900px);border-radius:6px;overflow:hidden;background:radial-gradient(ellipse at 50% 35%,var(--panel),var(--bg) 75%);border:1px solid var(--line)}
+@media (max-width:980px){.stage{height:min(72vh,620px)}}
+#gl{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.hud{position:absolute;left:14px;top:12px;pointer-events:none;display:flex;flex-direction:column;gap:2px}
+.hud .lbl{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.hud .big{font-family:var(--display);font-weight:700;font-size:clamp(40px,6vw,70px);line-height:.9;letter-spacing:.08em;font-variant-numeric:tabular-nums}
+.hud .big b{color:var(--accent);font-weight:700}
+.hud .meta{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.caption{position:absolute;left:50%;transform:translateX(-50%);top:14px;max-width:min(560px,60%);background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:6px 12px;font-size:13px;text-align:center;opacity:0;transition:opacity .3s;pointer-events:none}
+.caption.on{opacity:.96}
+@media (max-width:640px){.caption{top:auto;bottom:118px;max-width:calc(100% - 32px)}}
+.legend{position:absolute;right:12px;top:12px;font-family:var(--mono);font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:2px;pointer-events:none;text-align:right}
+.legend i{display:inline-block;width:18px;height:3px;vertical-align:middle;margin-left:6px;border-radius:2px}
+.dock{position:absolute;left:10px;right:10px;bottom:10px;display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:flex-end}
+.group{display:flex;flex-wrap:wrap;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:4px;align-items:center}
+.group .gl{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--muted);padding:0 4px 0 2px}
+button{font:inherit;font-size:12.5px;color:var(--ink);background:transparent;border:1px solid transparent;border-radius:4px;padding:5px 9px;cursor:pointer}
+button:hover{border-color:var(--line)}
+button[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--ink)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.mode{font-family:var(--mono);font-size:11px;color:var(--muted);padding:0 6px}
+.mode b{color:var(--accent);font-weight:600}
+/* console */
+aside{display:flex;flex-direction:column;gap:10px;min-width:0}
+@media (min-width:981px){aside{max-height:clamp(440px,calc(100vh - 110px),900px);overflow:auto;padding-right:2px}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 12px;min-width:0}
+.panel h2{font-family:var(--mono);font-weight:600;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:0 0 8px;display:flex;justify-content:space-between;gap:8px}
+.windows{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.win{display:flex;flex-direction:column;align-items:center;gap:2px}
+.win .t{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+.win .l{font-family:var(--display);font-weight:700;font-size:40px;line-height:1;width:100%;text-align:center;background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:4px 0}
+.win .l.moved{color:var(--accent)}
+.win .ud{display:flex;gap:4px}
+.win .ud button{padding:1px 10px;font-family:var(--mono)}
+.stat{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;margin-top:8px;color:var(--muted)}
+.stat b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+.bar{height:4px;background:var(--line);border-radius:2px;overflow:hidden;margin-top:4px}
+.bar>div{height:100%;background:var(--accent);width:0}
+.io{font-family:var(--mono);font-size:14px;letter-spacing:.06em;word-break:break-all;min-height:1.6em}
+.io .last{background:var(--accent-soft);color:var(--ink);border-radius:2px}
+.io-row{display:grid;grid-template-columns:44px minmax(0,1fr);gap:8px;align-items:baseline}
+.io-row .k{font-size:11px;color:var(--muted)}
+.typein{display:flex;gap:6px;margin-top:8px}
+.typein input{flex:1;min-width:0;font:inherit;font-family:var(--mono);text-transform:uppercase;padding:5px 8px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink)}
+.typein button{border-color:var(--line)}
+#schem{width:100%;height:330px;display:block}
+.pairs{display:flex;flex-wrap:wrap;gap:4px}
+.pairs span{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-radius:3px;padding:1px 5px}
+.pairs span.hot{border-color:var(--accent);background:var(--accent-soft)}
+.note{font-size:12px;color:var(--muted);margin-top:6px}
+.cfg{display:grid;grid-template-columns:auto repeat(3,minmax(0,1fr));gap:6px 6px;align-items:center;font-size:12px}
+.cfg .k{color:var(--muted);font-size:11.5px}
+select,.cfg input{font:inherit;font-family:var(--mono);font-size:12px;padding:3px 4px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink);min-width:0;width:100%}
+.cfg .span3{grid-column:span 3}
+.check{font-family:var(--mono);font-size:11.5px;display:flex;flex-direction:column;gap:3px}
+.check .ok{color:var(--accent)}
+footer.src{font-size:11.5px;color:var(--muted);margin-top:10px}
+footer.src a{color:var(--muted)}
+#cursor{position:fixed;left:-40px;top:-40px;width:22px;height:22px;pointer-events:none;z-index:50;transition:left .55s cubic-bezier(.4,.1,.2,1),top .55s cubic-bezier(.4,.1,.2,1);opacity:0}
+#cursor.on{opacity:1}
+#cursor svg{width:22px;height:22px;filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))}
+#cursor .ring{position:absolute;left:-9px;top:-9px;width:18px;height:18px;border-radius:50%;border:2px solid var(--accent);opacity:0}
+#cursor.click .ring{animation:ping .4s ease-out}
+@keyframes ping{from{opacity:1;transform:scale(.4)}to{opacity:0;transform:scale(1.8)}}
+@media (prefers-reduced-motion:reduce){#cursor{transition:none}}
+.help-btn{margin-left:auto;align-self:center;border:1px solid var(--accent);background:var(--accent-soft);font-weight:700;padding:7px 14px;font-size:13.5px}
+.guide{position:fixed;inset:0;z-index:60;background:rgba(10,12,10,.45);display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding-top:max(24px,env(safe-area-inset-top,0px));padding-bottom:24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.guide[hidden]{display:none}
+.msg{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 14px 12px;margin-bottom:14px}
+.tabs{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;margin-bottom:10px}
+.tabs [role=tab]{font-weight:700;font-size:14px;padding:6px 16px;border:1px solid var(--line)}
+.tabs [role=tab][aria-selected=true]{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.tabnote{font-size:12.5px;color:var(--muted);margin-left:6px}
+.pane{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:16px}
+.pane[hidden]{display:none}
+@media (max-width:820px){.pane{grid-template-columns:minmax(0,1fr)}}
+.col{display:flex;flex-direction:column;gap:6px;min-width:0}
+.fl{font-size:12px;font-weight:700;color:var(--muted)}
+.msg textarea,.msg input{font:inherit;font-size:15px;padding:8px 10px;border:1px solid var(--line);border-radius:5px;background:var(--bg);color:var(--ink);width:100%;min-width:0;resize:vertical}
+.msg .keycode{font-family:var(--mono);font-size:13px;letter-spacing:.02em}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.msg button{border-color:var(--line);font-size:13px}
+.msg button.primary{background:var(--accent);border-color:var(--accent);color:#1b1300;font-weight:700;padding:7px 16px}
+.hint{font-size:12px;color:var(--muted)}
+.hint.err{color:#d2453b}
+.field{display:flex;flex-direction:column;gap:4px}
+.msg *{box-sizing:border-box}
+.copyrow{display:flex;gap:6px}
+.copyrow button{flex:none;white-space:nowrap}
+.copyrow input{font-size:13px;font-family:var(--mono)}
+.cipher summary{cursor:pointer;font-size:12px;color:var(--muted)}
+.cipher .io{font-size:12px;max-height:110px;overflow:auto;margin-top:4px}
+.plain{min-height:90px;background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:10px 12px;font-size:17px;line-height:1.7;white-space:pre-wrap;word-break:break-word}
+.plain.ok{border-color:var(--accent);background:var(--accent-soft)}
+.copied{margin:6px 0 0;font-size:12px;color:var(--accent);min-height:1em}
+.guide-card{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:8px;max-width:680px;width:100%;padding:20px 22px 18px;box-shadow:0 18px 50px rgba(0,0,0,.25)}
+.guide-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:6px}
+.guide-head h2{font-family:var(--display);font-size:30px;letter-spacing:.04em;margin:0}
+.guide-head button{border-color:var(--line);font-size:13px}
+.guide h3{font-size:15px;margin:16px 0 6px;display:flex;align-items:center;gap:8px}
+.guide h3 .n{font-family:var(--mono);font-size:11px;color:var(--accent);border:1px solid var(--accent);border-radius:3px;padding:0 5px}
+.guide p,.guide li{font-size:13.5px;line-height:1.7;max-width:62ch}
+.guide p{margin:0 0 4px}
+.guide ol,.guide ul{margin:0;padding-left:1.4em}
+.guide kbd{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-bottom-width:2px;border-radius:3px;padding:0 5px;background:var(--bg)}
+.guide .tip{background:var(--accent-soft);border-radius:5px;padding:8px 12px;margin-top:6px;font-size:13px}
+.guide-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.guide-foot button{border:1px solid var(--accent);background:var(--accent-soft);font-weight:700}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1>ENIGMA <span>I</span></h1>
+    <p class="sub">ドイツ陸軍用エニグマI型の分解シミュレーター。ローター3枚・反転ローター・プラグボードを実配線で計算し、1打鍵ごとの電流経路を3Dと模式図に描きます。キーボードで打つか、3Dのキーをクリックしてください。</p>
+    <button class="help-btn" id="bHelp" aria-haspopup="dialog">使い方</button>
+  </header>
+
+  <div class="guide" id="guide" role="dialog" aria-modal="true" aria-labelledby="guideTitle" hidden>
+    <div class="guide-card">
+      <div class="guide-head"><h2 id="guideTitle">使い方</h2><button id="bGuideX" aria-label="使い方を閉じる">閉じる</button></div>
+      <p>ページを開くと自動ツアーが動きます。眺めるだけでも仕組みがわかります。画面をクリックするかキーを押すと、操作があなたに切り替わります（25秒放っておくとツアーに戻ります）。</p>
+
+      <h3><span class="n">0</span>メッセージを送る・受け取る（いちばん上の欄）</h3>
+      <ol>
+        <li><b>送る</b>：「送りたい文章」を書いて［暗号にする］。日本語でも大丈夫です。</li>
+        <li>出てきた<b>①URL</b>と<b>②復号キー</b>を相手に送ります。［URLとキーをまとめてコピー］でLINEやメールに貼れます。</li>
+        <li><b>受け取る</b>：届いたURLを開くと暗号文が自動で入ります。復号キーを貼って［復号する］を押せば文章が読めます。</li>
+      </ol>
+      <p class="tip">キーをURLとは別のメッセージで送ると、URLだけ見た人には読めません。暗号化・復号のときは、機械が実際に動いて最初の文字を打ちます。</p>
+
+      <h3><span class="n">1</span>文字を暗号にする</h3>
+      <ol>
+        <li>キーボードでアルファベットを1文字打ちます。3Dのキーをクリックしても同じです。</li>
+        <li>キーが沈み、<b>別の文字のランプが光ります</b>。これが暗号の文字です。</li>
+        <li>右の「入力と出力」に、打った文字と暗号の文字が並びます。</li>
+        <li>長い文は「まとめて打つ」欄に入れて［打鍵］を押すと一気に打てます。</li>
+      </ol>
+
+      <h3><span class="n">2</span>暗号を元に戻す</h3>
+      <ol>
+        <li>例えば <kbd>HELLO</kbd> と打ち、出てきた暗号文をメモします。</li>
+        <li>「入力と出力」の［開始位置に戻す］を押します。</li>
+        <li>メモした暗号文を打つと、出力に <kbd>HELLO</kbd> が戻ってきます。</li>
+      </ol>
+      <p class="tip">同じ設定で暗号文を打つと元に戻ります（反転性）。設定が1つでも違うと戻りません。</p>
+
+      <h3><span class="n">3</span>見え方を変える（画面下のボタン）</h3>
+      <ul>
+        <li><b>視点</b>：全体／ローター／鍵盤・ランプ／プラグボード／真上。ドラッグで回転、ホイールやピンチで拡大縮小。</li>
+        <li><b>ローター分解</b>：3枚の円盤を離して、中を電気が通る様子を見やすくします。</li>
+        <li><b>X線</b>：木箱を透かして、キーからランプまでの全経路を見せます。</li>
+        <li><b>ローターだけ</b>：本体を消して円盤部分だけにします。</li>
+        <li><b>電流経路</b>：オレンジ（行き）と青（帰り）の線を表示・非表示します。</li>
+      </ul>
+
+      <h3><span class="n">4</span>画面の読み方</h3>
+      <ul>
+        <li><b>左上の3文字</b>：3枚のローターの今の位置。打つたびに一番右が1つ進み、一周すると隣が進みます。</li>
+        <li><b>配線の模式図</b>：電気の通り道を平面にしたもの。オレンジが右から左へ進み、左端で折り返して青で戻ります。</li>
+        <li><b>この位置の換字表</b>：今の位置での文字の入れ替えペア13組。光っているのが直前に使われた組です。</li>
+      </ul>
+
+      <h3><span class="n">5</span>鍵（設定）を変える</h3>
+      <ul>
+        <li>「鍵の設定」で、ローターの種類と並び順、リング、反転ローターを選べます。</li>
+        <li>プラグボードは <kbd>AJ SO</kbd> のように2文字ずつスペースで区切って入力します。</li>
+        <li>ローター位置の［−］［＋］で開始位置を変えられます。</li>
+      </ul>
+      <p class="tip">送る側と受ける側が同じ設定を持つのが、実際の運用でした。友だちと設定をそろえれば、暗号文のやりとりができます。</p>
+
+      <div class="guide-foot"><button id="bGuideGo">さっそく打ってみる</button></div>
+    </div>
+  </div>
+
+  <section class="msg" id="msg" aria-label="暗号メッセージ">
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tabSend" aria-selected="true" aria-controls="paneSend">送る</button>
+      <button role="tab" id="tabRecv" aria-selected="false" aria-controls="paneRecv">受け取る</button>
+      <span class="tabnote">日本語もOK。文章をエニグマで暗号にして、URLと復号キーを相手に渡します。</span>
+    </div>
+
+    <div class="pane" id="paneSend" role="tabpanel" aria-labelledby="tabSend">
+      <div class="col">
+        <label for="sendText" class="fl">送りたい文章</label>
+        <textarea id="sendText" rows="4" maxlength="400" placeholder="例：今夜7時に葉山の海で会いましょう">今夜7時に葉山の海で会いましょう</textarea>
+        <div class="row"><button class="primary" id="bEncrypt">暗号にする</button><span class="hint" id="sendCount"></span></div>
+      </div>
+      <div class="col out" id="sendOut" hidden>
+        <div class="field">
+          <span class="fl">① 相手に送るURL（暗号文入り）</span>
+          <div class="copyrow"><input id="shareUrl" readonly aria-label="暗号文入りのURL"><button data-copy="shareUrl">コピー</button></div>
+        </div>
+        <div class="field">
+          <span class="fl">② 復号キー</span>
+          <div class="copyrow"><input id="shareKey" readonly class="keycode" aria-label="復号キー"><button data-copy="shareKey">コピー</button></div>
+          <span class="hint">キーはURLとは別のメッセージで送ると、URLだけ見た人には読めません。</span>
+        </div>
+        <div class="row"><button class="primary" id="bCopyAll">URLとキーをまとめてコピー</button><button id="bNewKey">別のキーで作り直す</button></div>
+        <details class="cipher"><summary>暗号文を見る（<span id="cipherLen">0</span>文字）</summary><div class="io" id="cipherView"></div></details>
+      </div>
+    </div>
+
+    <div class="pane" id="paneRecv" role="tabpanel" aria-labelledby="tabRecv" hidden>
+      <div class="col">
+        <label for="recvCipher" class="fl">届いた暗号文</label>
+        <textarea id="recvCipher" rows="3" placeholder="URLから開くと自動で入ります。手で貼り付けてもOK"></textarea>
+        <label for="recvKey" class="fl">復号キー</label>
+        <input id="recvKey" class="keycode" placeholder="例：II-V-I/B/FKA/PQW/AJ-SO-..." autocomplete="off" spellcheck="false">
+        <div class="row"><button class="primary" id="bDecrypt">復号する</button><span class="hint err" id="recvErr" role="alert"></span></div>
+      </div>
+      <div class="col out">
+        <span class="fl">復号した文章</span>
+        <div class="plain" id="recvPlain"><span class="hint">復号キーを入れて［復号する］を押すと、ここに文章が出ます。</span></div>
+      </div>
+    </div>
+    <p class="copied" id="copied" role="status" aria-live="polite"></p>
+  </section>
+
+  <main class="app">
+    <section class="stage" id="stage">
+      <canvas id="gl" aria-label="エニグマ暗号機の3Dモデル"></canvas>
+      <div class="hud">
+        <span class="lbl">ローター窓 L · M · R</span>
+        <span class="big" id="hudPos">AAA</span>
+        <span class="meta" id="hudLast">— 打鍵待ち</span>
+      </div>
+      <div class="legend">
+        <span>往路 キー→反転ローター<i style="background:#e0901a"></i></span>
+        <span>復路 反転ローター→ランプ<i style="background:#2f7fa6"></i></span>
+      </div>
+      <div class="caption" id="caption"></div>
+      <div class="dock">
+        <div class="group" role="group" aria-label="視点">
+          <span class="gl">視点</span>
+          <button data-view="hero" aria-pressed="true">全体</button>
+          <button data-view="rotors">ローター</button>
+          <button data-view="keys">鍵盤・ランプ</button>
+          <button data-view="plugs">プラグボード</button>
+          <button data-view="top">真上</button>
+        </div>
+        <div class="group" role="group" aria-label="表示">
+          <span class="gl">表示</span>
+          <button id="bExplode" aria-pressed="false">ローター分解</button>
+          <button id="bXray" aria-pressed="false">X線</button>
+          <button id="bIsolate" aria-pressed="false">ローターだけ</button>
+          <button id="bPath" aria-pressed="true">電流経路</button>
+          <span class="mode" id="mode"><b>自動ツアー</b>中</span>
+        </div>
+      </div>
+    </section>
+
+    <aside>
+      <div class="panel">
+        <h2><span>ローター位置</span><span id="steptype">—</span></h2>
+        <div class="windows" id="windows"></div>
+        <div class="stat"><span>打鍵数</span><b id="count">0</b></div>
+        <div class="stat"><span>周期 26×25×26</span><b id="cyc">0 / 16,900</b></div>
+        <div class="bar"><div id="cycbar"></div></div>
+      </div>
+
+      <div class="panel">
+        <h2><span>入力と出力</span><button id="bReset" style="padding:0 6px;font-size:11px">開始位置に戻す</button></h2>
+        <div class="io-row"><span class="k">入力</span><div class="io" id="ioIn"></div></div>
+        <div class="io-row"><span class="k">出力</span><div class="io" id="ioOut"></div></div>
+        <form class="typein" id="typeForm">
+          <input id="typeText" maxlength="60" placeholder="まとめて打つ（A–Z）" autocomplete="off">
+          <button type="submit">打鍵</button>
+        </form>
+      </div>
+
+      <div class="panel">
+        <h2><span>配線の模式図</span><span>現在位置</span></h2>
+        <canvas id="schem" aria-label="プラグボードからローター、反転ローターまでの配線と経路"></canvas>
+      </div>
+
+      <div class="panel">
+        <h2><span>この位置の換字表</span><span>13組の対</span></h2>
+        <div class="pairs" id="pairs"></div>
+        <p class="note">どの位置でも26文字は13組の対になります。AがBになるならBはA（反転性）、自分自身に戻る文字はありません。</p>
+      </div>
+
+      <div class="panel">
+        <h2><span>鍵の設定</span></h2>
+        <div class="cfg">
+          <span class="k">ローター</span>
+          <select id="r0" aria-label="左ローター"></select><select id="r1" aria-label="中ローター"></select><select id="r2" aria-label="右ローター"></select>
+          <span class="k">リング</span>
+          <select id="g0" aria-label="左リング"></select><select id="g1" aria-label="中リング"></select><select id="g2" aria-label="右リング"></select>
+          <span class="k">反転</span>
+          <select id="ukw" class="span3" aria-label="反転ローター"><option value="B">UKW-B</option><option value="C">UKW-C</option></select>
+          <span class="k">プラグ</span>
+          <input id="plugs" class="span3" value="AJ SO" aria-label="プラグボード（2文字ずつ）">
+        </div>
+        <p class="note" id="plugNote"></p>
+      </div>
+
+      <div class="panel">
+        <h2><span>モデルの検算</span></h2>
+        <div class="check" id="check"></div>
+      </div>
+    </aside>
+  </main>
+  <footer class="src">実配線データ：ローターI〜V、UKW-B/C（エニグマI型）。仕組みの説明は <a href="https://ja.wikipedia.org/wiki/%E3%82%A8%E3%83%8B%E3%82%B0%E3%83%9E_(%E6%9A%97%E5%8F%B7%E6%A9%9F)" target="_blank" rel="noopener">Wikipedia「エニグマ (暗号機)」</a>。研究用モデルのため、ローターは本体から持ち上げて表示しています。</footer>
+</div>
+
+<div id="cursor" aria-hidden="true"><span class="ring"></span><svg viewBox="0 0 24 24"><path d="M3 2l15 9-6.5 1.5L15 20l-3 1.4-3.4-7.4L3 18z" fill="#fff" stroke="#111" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+// ===== Enigma I — pure model. Every 3D part, panel and label reads from here. =====
+const A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const ROTORS = {
+  I:   { w: 'EKMFLGDQVZNTOWYHXUSPAIBRCJ', notch: 'Q' },
+  II:  { w: 'AJDKSIRUXBLHWTMCQGZNPYFVOE', notch: 'E' },
+  III: { w: 'BDFHJLCPRTXVZNYEIWGAKMUSQO', notch: 'V' },
+  IV:  { w: 'ESOVPZJAYQUIRHXLNFTGKDCMWB', notch: 'J' },
+  V:   { w: 'VZBRGITYUPSDNHLXAWMJQOFECK', notch: 'Z' },
+};
+const REFLECTORS = { B: 'YRUHQSLDPXNGOKMIEBFZCWVJAT', C: 'FVPJIAOYEDRZXWGCTKUQSBNMHL' };
+const idx = c => A.indexOf(c);
+const mod = n => ((n % 26) + 26) % 26;
+const fwdTable = w => [...w].map(idx);
+const invTable = w => { const t = Array(26); [...w].forEach((c, i) => t[idx(c)] = i); return t; };
+
+// plugboard string "AJ SO" -> permutation array
+function plugPerm(str) {
+  const p = [...Array(26).keys()];
+  (str.toUpperCase().match(/[A-Z]{2}/g) || []).forEach(([a, b]) => {
+    const x = idx(a), y = idx(b);
+    if (x !== y && p[x] === x && p[y] === y) { p[x] = y; p[y] = x; }
+  });
+  return p;
+}
+
+// one rotor pass. c = absolute contact (ETW frame). returns absolute contact out.
+function pass(table, c, pos, ring) { const s = pos - ring; return mod(table[mod(c + s)] - s); }
+
+// stepping (incl. double-step of the middle rotor). pos = [L, M, R]
+function step(cfg, pos) {
+  const [Lr, Mr, Rr] = cfg.order.map(n => ROTORS[n]);
+  let [l, m, r] = pos;
+  const rAtNotch = r === idx(Rr.notch), mAtNotch = m === idx(Mr.notch);
+  if (mAtNotch) { m = mod(m + 1); l = mod(l + 1); }
+  else if (rAtNotch) { m = mod(m + 1); }
+  r = mod(r + 1);
+  return [l, m, r];
+}
+
+// full path for one letter at given (already stepped) positions.
+// contacts: [c0 ETW in, c1 after R, c2 after M, c3 after L, c4 after UKW, c5 after L, c6 after M, c7 after R]
+function encipher(cfg, pos, letter) {
+  const plug = plugPerm(cfg.plugs);
+  const T = cfg.order.map(n => ({ f: fwdTable(ROTORS[n].w), b: invTable(ROTORS[n].w) }));
+  const U = fwdTable(REFLECTORS[cfg.reflector]);
+  const [rl, rm, rr] = cfg.rings;
+  const [pl, pm, pr] = pos;
+  const c = [];
+  c[0] = plug[letter];
+  c[1] = pass(T[2].f, c[0], pr, rr);
+  c[2] = pass(T[1].f, c[1], pm, rm);
+  c[3] = pass(T[0].f, c[2], pl, rl);
+  c[4] = U[c[3]];
+  c[5] = pass(T[0].b, c[4], pl, rl);
+  c[6] = pass(T[1].b, c[5], pm, rm);
+  c[7] = pass(T[2].b, c[6], pr, rr);
+  return { input: letter, contacts: c, output: plug[c[7]] };
+}
+
+// the whole substitution at these positions (no stepping): 26 -> 26
+function table(cfg, pos) { return [...Array(26).keys()].map(i => encipher(cfg, pos, i).output); }
+
+// press = step then encipher. returns new state + path.
+function press(cfg, pos, letter) { const np = step(cfg, pos); return { pos: np, ...encipher(cfg, np, letter) }; }
+
+function run(cfg, start, text) {
+  let pos = start, out = '';
+  for (const ch of text) { const r = press(cfg, pos, idx(ch)); pos = r.pos; out += A[r.output]; }
+  return { out, pos };
+}
+
+if (typeof module !== 'undefined') module.exports = { A, ROTORS, REFLECTORS, step, encipher, press, run, table, plugPerm, idx };
+
+</script>
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+const ROWS = ['QWERTZUIO', 'ASDFGHJK', 'PYXCVBNML'];
+const D = Math.PI * 2 / 26;
+const ORDER_NAMES = ['I','II','III','IV','V'];
+
+// ---------- state ----------
+const cfg = { order: ['I','II','III'], reflector: 'B', rings: [0,0,0], plugs: 'AJ SO' };
+let start = [0,0,0], pos = [0,0,0], inText = '', outText = '', last = null, count = 0, lastStep = null;
+
+// ---------- three setup ----------
+const canvas = $('#gl');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputEncoding = THREE.sRGBEncoding;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(36, 1, 0.5, 400);
+const controls = new THREE.OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.dampingFactor = 0.08; controls.minDistance = 12; controls.maxDistance = 140;
+scene.add(new THREE.HemisphereLight(0xffffff, 0xb9bcb2, 0.75));
+const sun = new THREE.DirectionalLight(0xffffff, 0.85);
+sun.position.set(-22, 50, 30); sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40, near: 1, far: 140 });
+sun.shadow.bias = -0.0008; scene.add(sun);
+const fill = new THREE.DirectionalLight(0xffffff, 0.25); fill.position.set(30, 20, -20); scene.add(fill);
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), new THREE.ShadowMaterial({ opacity: 0.16 }));
+floor.rotation.x = -Math.PI / 2; floor.position.y = -12.6; floor.receiveShadow = true; scene.add(floor);
+
+const mat = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.55, metalness: 0.2 }, o));
+const M = {
+  wood: mat(0x7a5232, { roughness: 0.7, metalness: 0 }),
+  deck: mat(0x2a2c2a, { roughness: 0.6, metalness: 0.15 }),
+  black: mat(0x1d1e1d, { roughness: 0.45, metalness: 0.3 }),
+  steel: mat(0x8c918c, { roughness: 0.45, metalness: 0.7 }),
+  brass: mat(0xb58a3c, { roughness: 0.45, metalness: 0.75 }),
+  ring: mat(0xe9e4d6, { roughness: 0.6, metalness: 0 }),
+  socket: mat(0x111111, { roughness: 0.5 }),
+};
+const caseMats = [M.wood, M.deck];
+
+function tex(ch, fg, bg, w = 128, h = 128, font = 84) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  if (bg) { g.fillStyle = bg; g.fillRect(0, 0, w, h); }
+  g.fillStyle = fg; g.font = `700 ${font}px "Saira Condensed", "Arial Narrow", sans-serif`;
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(ch, w / 2, h / 2 + 4);
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return t;
+}
+
+// ---------- case ----------
+const machine = new THREE.Group(); scene.add(machine);
+const caseGroup = new THREE.Group(); machine.add(caseGroup);
+const box = new THREE.Mesh(new THREE.BoxGeometry(35, 12, 29), M.wood); box.position.set(0, -6.3, 0);
+box.castShadow = true; box.receiveShadow = true; caseGroup.add(box);
+const deck = new THREE.Mesh(new THREE.BoxGeometry(33.4, 0.5, 27.4), M.deck); deck.position.set(0, -0.25, 0);
+deck.receiveShadow = true; caseGroup.add(deck);
+const front = new THREE.Mesh(new THREE.BoxGeometry(31, 10, 0.3), M.deck); front.position.set(0, -6.4, 14.55); caseGroup.add(front);
+
+// ---------- keys & lamps ----------
+const keyX = (r, i) => (i - (ROWS[r].length - 1) / 2) * 3.2 + (r === 1 ? 0 : 0);
+const keyPos = {}, lampPos = {}, sockPos = {};
+const keys = {}, lamps = {}, keyMeshes = [];
+const keysGroup = new THREE.Group(), lampsGroup = new THREE.Group(), plugGroup = new THREE.Group();
+machine.add(keysGroup, lampsGroup, plugGroup);
+const lampOff = {}, lampOnT = {};
+ROWS.forEach((row, r) => [...row].forEach((ch, i) => {
+  const x = keyX(r, i);
+  // key
+  const kz = 6.6 + r * 2.8, g = new THREE.Group(); g.position.set(x, 0, kz);
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 1.4, 10), M.steel); stem.position.y = 0.7; g.add(stem);
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.15, 0.45, 32), M.black); cap.position.y = 1.5; cap.castShadow = true; g.add(cap);
+  const face = new THREE.Mesh(new THREE.CircleGeometry(0.92, 32), new THREE.MeshStandardMaterial({ map: tex(ch, '#141414', '#f2efe6'), roughness: 0.4 }));
+  face.rotation.x = -Math.PI / 2; face.position.y = 1.74; g.add(face);
+  cap.userData.letter = face.userData.letter = ch;
+  keyMeshes.push(cap, face); keysGroup.add(g); keys[ch] = { g, dip: 0 }; keyPos[ch] = new THREE.Vector3(x, 1.8, kz);
+  // lamp
+  const lz = -2.4 + r * 2.8;
+  lampOff[ch] = new THREE.MeshBasicMaterial({ map: tex(ch, '#9c9a90', '#3a3b37') });
+  lampOnT[ch] = new THREE.MeshBasicMaterial({ map: tex(ch, '#4a2a00', '#ffc65a') });
+  const lamp = new THREE.Mesh(new THREE.CircleGeometry(1.0, 32), lampOff[ch]);
+  lamp.rotation.x = -Math.PI / 2; lamp.position.set(x, 0.06, lz); lampsGroup.add(lamp);
+  const rim = new THREE.Mesh(new THREE.RingGeometry(1.0, 1.25, 32), M.black); rim.rotation.x = -Math.PI / 2; rim.position.set(x, 0.05, lz); lampsGroup.add(rim);
+  lamps[ch] = lamp; lampPos[ch] = new THREE.Vector3(x, 0.1, lz);
+  // plugboard sockets (front face)
+  const sy = -3.4 - r * 3.0, sz = 14.75;
+  [-0.35, 0.35].forEach(dx => { const s = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.2, 12), M.socket); s.rotation.x = Math.PI / 2; s.position.set(x + dx, sy, sz); plugGroup.add(s); });
+  const lab = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.9), new THREE.MeshBasicMaterial({ map: tex(ch, '#e8e4d8', null), transparent: true }));
+  lab.position.set(x, sy + 0.95, sz); plugGroup.add(lab);
+  sockPos[ch] = new THREE.Vector3(x, sy, sz + 0.1);
+}));
+const lampLight = new THREE.PointLight(0xffb43c, 0, 9, 2); lampLight.position.y = 1.5; scene.add(lampLight);
+
+// plug cables
+const cableGroup = new THREE.Group(); plugGroup.add(cableGroup);
+const cableColors = [0xc0392b, 0x2b5aa0, 0x3a7d44, 0x8a5aa8, 0xb8862b, 0x2b8a8a, 0x8a3a3a, 0x555555, 0x2f4f80, 0x7a7a2a, 0x5a2b70, 0x226644, 0x993300];
+function buildCables() {
+  cableGroup.clear();
+  const p = plugPerm(cfg.plugs); let k = 0;
+  p.forEach((b, a) => {
+    if (b <= a) return;
+    const A1 = sockPos[A[a]].clone(), B1 = sockPos[A[b]].clone();
+    const mid = A1.clone().lerp(B1, 0.5); mid.z += 2.2; mid.y -= 1.2 + A1.distanceTo(B1) * 0.12;
+    const curve = new THREE.CatmullRomCurve3([A1, A1.clone().add(new THREE.Vector3(0, 0, 0.9)), mid, B1.clone().add(new THREE.Vector3(0, 0, 0.9)), B1]);
+    const m = new THREE.Mesh(new THREE.TubeGeometry(curve, 40, 0.17, 8), mat(cableColors[k++ % cableColors.length], { roughness: 0.5, metalness: 0 }));
+    m.castShadow = true; cableGroup.add(m);
+  });
+}
+
+// ---------- rotors ----------
+const AXIS_Y = 3.6, AXIS_Z = -9.2, ROT_R = 3.2, ROT_W = 2.4;
+const BASE_X = { ukw: -7.6, L: -3.8, M: 0, R: 3.8, etw: 7.6 };
+const rotorGroup = new THREE.Group(); machine.add(rotorGroup);
+const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 22, 16), M.steel); axle.rotation.z = Math.PI / 2; axle.position.set(0, AXIS_Y, AXIS_Z); rotorGroup.add(axle);
+for (const sx of [-10.4, 10.4]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.8, AXIS_Y + 0.4, 2.6), M.deck); p.position.set(sx, AXIS_Y / 2 - 0.2, AXIS_Z); p.castShadow = true; rotorGroup.add(p); }
+const ringTexCache = {};
+function makeWheel(kind) {
+  const g = new THREE.Group(), spin = new THREE.Group(); g.add(spin);
+  const cyl = (r, w, m, seg = 52) => { const c = new THREE.Mesh(new THREE.CylinderGeometry(r, r, w, seg), m); c.rotation.z = Math.PI / 2; c.castShadow = true; return c; };
+  if (kind === 'ukw' || kind === 'etw') {
+    const body = cyl(ROT_R, 1.4, kind === 'ukw' ? M.black : M.steel); spin.add(body);
+  } else {
+    spin.add(cyl(ROT_R - 0.35, ROT_W - 0.3, M.black));
+    spin.add(cyl(ROT_R, 1.1, M.ring));                     // alphabet ring
+    const thumb = cyl(ROT_R + 0.45, 0.35, M.black, 26); thumb.position.x = -ROT_W / 2 + 0.1; spin.add(thumb);
+    // letters on the ring: letter i sits at angle -i·δ so that window letter = position
+    for (let i = 0; i < 26; i++) {
+      const piv = new THREE.Object3D(); piv.rotation.x = -i * D;
+      const pl = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.75), new THREE.MeshBasicMaterial({ map: ringTexCache[i] || (ringTexCache[i] = tex(A[i], '#1a1a1a', null, 64, 64, 50)), transparent: true }));
+      pl.position.set(0.1, ROT_R + 0.01, 0); pl.rotation.x = -Math.PI / 2; piv.add(pl); spin.add(piv);
+    }
+    const notch = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.6), M.brass); notch.castShadow = true;
+    const np = new THREE.Object3D(); np.add(notch); notch.position.set(ROT_W / 2 - 0.15, ROT_R + 0.1, 0); spin.add(np);
+    g.userData.notch = np;
+  }
+  // contact pins on both faces (absolute frame, drawn on the spinning body)
+  const pinGeo = new THREE.CylinderGeometry(0.11, 0.11, 0.12, 8); pinGeo.rotateZ(Math.PI / 2);
+  const w = (kind === 'ukw' || kind === 'etw') ? 1.4 : ROT_W - 0.3;
+  for (let i = 0; i < 26; i++) for (const side of [-1, 1]) {
+    if (kind === 'ukw' && side === -1) continue;
+    const pin = new THREE.Mesh(pinGeo, M.brass);
+    pin.position.set(side * (w / 2 + 0.05), Math.cos(i * D) * 2.3, Math.sin(i * D) * 2.3); spin.add(pin);
+  }
+  g.position.set(0, AXIS_Y, AXIS_Z); rotorGroup.add(g);
+  return { g, spin, angle: 0, target: 0 };
+}
+const W = { ukw: makeWheel('ukw'), L: makeWheel('rotor'), M: makeWheel('rotor'), R: makeWheel('rotor'), etw: makeWheel('etw') };
+function setNotches() { ['L', 'M', 'R'].forEach((k, i) => W[k].g.userData.notch.rotation.x = -idx(ROTORS[cfg.order[i]].notch) * D); }
+
+// ---------- view toggles ----------
+let explode = 0, explodeT = 0, xray = false, isolate = false, showPath = true;
+const wheelX = k => BASE_X[k] * (1 + explode * 0.95);
+const wheelY = () => AXIS_Y + explode * 3.5;
+function applyXray() {
+  caseMats.forEach(m => { m.transparent = xray; m.opacity = xray ? 0.13 : 1; m.depthWrite = !xray; m.needsUpdate = true; });
+  box.castShadow = !xray;
+}
+function applyIsolate() { caseGroup.visible = keysGroup.visible = lampsGroup.visible = plugGroup.visible = !isolate; }
+
+// ---------- signal path (drawn from the model) ----------
+const pathGroup = new THREE.Group(); scene.add(pathGroup);
+const fwdMat = new THREE.MeshBasicMaterial({ color: 0xe0901a }), retMat = new THREE.MeshBasicMaterial({ color: 0x2f7fa6 });
+const cp = (x, c, r) => new THREE.Vector3(x, wheelY() + Math.cos(c * D) * r, AXIS_Z + Math.sin(c * D) * r);
+function faces(k) { const w = (k === 'ukw' || k === 'etw') ? 1.4 : ROT_W - 0.3; return [wheelX(k) - w / 2 - 0.12, wheelX(k) + w / 2 + 0.12]; }
+function buildPath() {
+  pathGroup.clear(); if (!last || !showPath) return;
+  const c = last.contacts, inL = A[last.input], outL = A[last.output], RF = 2.3, RB = 2.3;
+  const [eL, eR] = faces('etw'), [rL, rR] = faces('R'), [mL, mR] = faces('M'), [lL, lR] = faces('L'), [, uR] = faces('ukw');
+  const showOuter = !isolate;
+  const f = [];
+  if (showOuter) {
+    const k = keyPos[inL], s0 = sockPos[inL], s1 = sockPos[A[c[0]]];
+    f.push(k, new THREE.Vector3(k.x, -2.2, k.z), new THREE.Vector3(s0.x, s0.y, s0.z - 0.6), s0);
+    if (s1 !== s0) f.push(s1);
+    f.push(new THREE.Vector3(s1.x, s1.y, s1.z - 0.6), new THREE.Vector3(eR + 2, wheelY() - 3.5, AXIS_Z + 4));
+  }
+  f.push(cp(eR, c[0], RF), cp(eL, c[0], RF), cp(rR, c[0], RF), cp(rL, c[1], RF), cp(mR, c[1], RF), cp(mL, c[2], RF), cp(lR, c[2], RF), cp(lL, c[3], RF), cp(uR, c[3], RF));
+  const ux = wheelX('ukw') - 0.4;
+  const b = [cp(uR, c[3], RF), cp(ux, c[3], 1.2), cp(ux, c[4], 1.2), cp(uR, c[4], RB),
+    cp(lL, c[4], RB), cp(lR, c[5], RB), cp(mL, c[5], RB), cp(mR, c[6], RB), cp(rL, c[6], RB), cp(rR, c[7], RB), cp(eL, c[7], RB), cp(eR, c[7], RB)];
+  if (showOuter) {
+    const s7 = sockPos[A[c[7]]], so = sockPos[outL], l = lampPos[outL];
+    b.push(new THREE.Vector3(eR + 2.6, wheelY() - 3.5, AXIS_Z + 4.6), new THREE.Vector3(s7.x, s7.y + 0.4, s7.z - 0.6), s7);
+    if (so !== s7) b.push(so);
+    b.push(new THREE.Vector3(so.x, so.y + 0.4, so.z - 0.6), new THREE.Vector3(l.x, -2.2, l.z), l);
+  }
+  for (const [pts, m] of [[f, fwdMat], [b, retMat]]) {
+    const cpth = new THREE.CurvePath();
+    for (let i = 0; i < pts.length - 1; i++) if (pts[i].distanceTo(pts[i + 1]) > 1e-3) cpth.add(new THREE.LineCurve3(pts[i], pts[i + 1]));
+    pathGroup.add(new THREE.Mesh(new THREE.TubeGeometry(cpth, pts.length * 24, 0.1, 6, false), m));
+    pts.forEach(p => { const d = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), m); d.position.copy(p); pathGroup.add(d); });
+  }
+}
+
+// ---------- camera views ----------
+const VIEWS = {
+  hero: { p: [12, 36, 48], t: [0, -1, 0] },
+  rotors: { p: [16, 15, 8], t: [0, 4, -9] },
+  keys: { p: [0, 34, 26], t: [0, 0, 4] },
+  plugs: { p: [-4, -1, 42], t: [0, -6.5, 14] },
+  top: { p: [0, 62, 0.01], t: [0, 0, 0] },
+};
+let camAnim = null;
+function setView(name) {
+  const v = VIEWS[name]; camAnim = { from: camera.position.clone(), to: new THREE.Vector3(...v.p), tf: controls.target.clone(), tt: new THREE.Vector3(...v.t), t: 0 };
+  document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', b.dataset.view === name));
+}
+camera.position.set(...VIEWS.hero.p); controls.target.set(...VIEWS.hero.t);
+
+// ---------- actions ----------
+function syncRotorTargets(stepped) {
+  ['L', 'M', 'R'].forEach((k, i) => {
+    const w = W[k];
+    if (stepped && stepped[i]) w.target += D;
+    else { const want = pos[i] * D, cur = w.target; w.target = want + Math.round((cur - want) / (Math.PI * 2)) * Math.PI * 2; }
+  });
+}
+let lampTimer = null, litLetter = null;
+function lightLamp(ch) {
+  if (litLetter) lamps[litLetter].material = lampOff[litLetter];
+  litLetter = ch; lamps[ch].material = lampOnT[ch];
+  lampLight.position.set(lampPos[ch].x, 1.6, lampPos[ch].z); lampLight.intensity = 1.6;
+  clearTimeout(lampTimer); lampTimer = setTimeout(() => { if (litLetter) lamps[litLetter].material = lampOff[litLetter]; litLetter = null; lampLight.intensity = 0; }, 2200);
+}
+function pressLetter(ch) {
+  const i = idx(ch); if (i < 0) return;
+  const before = pos.slice();
+  const r = press(cfg, pos, i);
+  pos = r.pos; last = r; count++;
+  const moved = before.map((v, k) => v !== pos[k]);
+  lastStep = moved; syncRotorTargets(moved);
+  inText += ch; outText += A[r.output];
+  keys[ch].dip = 1; lightLamp(A[r.output]);
+  buildPath(); render2D();
+}
+function resetToStart(clear = true) {
+  pos = start.slice(); last = null; lastStep = null; count = 0;
+  if (clear) { inText = ''; outText = ''; }
+  syncRotorTargets(null); buildPath(); render2D();
+}
+
+// ---------- 2D panels ----------
+const fmt5 = s => s.replace(/(.{5})/g, '$1 ').trim();
+function ioHtml(s) { if (!s) return '<span style="color:var(--muted)">—</span>'; const g = fmt5(s); return g.slice(0, -1).replace(/</g, '') + `<span class="last">${g.slice(-1)}</span>`; }
+function render2D() {
+  $('#hudPos').innerHTML = pos.map((p, i) => lastStep && lastStep[i] && i < 2 ? `<b>${A[p]}</b>` : A[p]).join('');
+  $('#hudLast').textContent = last ? `${A[last.input]} → ${A[last.output]}　（打鍵 ${count}）` : '— 打鍵待ち';
+  const wins = $('#windows'); wins.innerHTML = '';
+  ['左 L', '中 M', '右 R'].forEach((lab, i) => {
+    const d = document.createElement('div'); d.className = 'win';
+    d.innerHTML = `<span class="t">${lab} · ${cfg.order[i]}</span><span class="l${lastStep && lastStep[i] ? ' moved' : ''}">${A[pos[i]]}</span><span class="ud"><button data-r="${i}" data-d="-1" aria-label="${lab}を戻す">−</button><button data-r="${i}" data-d="1" aria-label="${lab}を進める">＋</button></span>`;
+    wins.appendChild(d);
+  });
+  $('#steptype').textContent = !lastStep ? '—' : lastStep[0] ? '左まで繰り上げ（ダブルステップ）' : lastStep[1] ? '中が繰り上げ' : '右だけ進む';
+  $('#count').textContent = count.toLocaleString();
+  const c = count % 16900; $('#cyc').textContent = `${c.toLocaleString()} / 16,900`; $('#cycbar').style.width = (c / 16900 * 100) + '%';
+  $('#ioIn').innerHTML = ioHtml(inText); $('#ioOut').innerHTML = ioHtml(outText);
+  const t = table(cfg, pos), seen = new Set(), pairs = $('#pairs'); pairs.innerHTML = '';
+  // pairs for the NEXT press position would differ; show table at current position (what the last letter used)
+  t.forEach((b, a) => { if (seen.has(a)) return; seen.add(a); seen.add(b);
+    const s = document.createElement('span'); s.textContent = A[a] + A[b];
+    if (last && (a === last.input || b === last.input)) s.className = 'hot'; pairs.appendChild(s); });
+  drawSchematic();
+}
+
+const sc = $('#schem'), sg = sc.getContext('2d');
+function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function drawSchematic() {
+  const w = sc.clientWidth, h = sc.clientHeight, dpr = Math.min(devicePixelRatio, 2);
+  if (sc.width !== w * dpr) { sc.width = w * dpr; sc.height = h * dpr; }
+  sg.setTransform(dpr, 0, 0, dpr, 0, 0); sg.clearRect(0, 0, w, h);
+  const ink = cssVar('--ink'), muted = cssVar('--muted'), line = cssVar('--line'), acc = cssVar('--accent'), ret = cssVar('--ret');
+  const top = 26, rh = (h - top - 6) / 26, y = i => top + rh * (i + 0.5);
+  // columns right→left like the machine: lamp/key | plugboard | R | M | L | UKW
+  const colW = (w - 40) / 6;
+  const X = { key: w - 14, plugR: w - 14 - colW * 0.6, plugL: w - 14 - colW * 1.3 };
+  const rot = ['R', 'M', 'L'].map((k, j) => { const r = X.plugL - colW * 0.35 - j * colW * 1.15; return { k, right: r, left: r - colW * 0.75 }; });
+  const ukwX = rot[2].left - colW * 0.45;
+  sg.font = `600 10px ${cssVar('--mono')}`; sg.textAlign = 'center'; sg.fillStyle = muted;
+  sg.fillText('鍵', X.key, 12); sg.fillText('プラグ', (X.plugR + X.plugL) / 2, 12);
+  rot.forEach((r, j) => sg.fillText(`${r.k}·${cfg.order[2 - j]}`, (r.left + r.right) / 2, 12));
+  sg.fillText('UKW', ukwX, 12);
+  // all wires (faint)
+  sg.lineWidth = 1; sg.strokeStyle = line;
+  const ord = [2, 1, 0];
+  const plug = plugPerm(cfg.plugs);
+  for (let i = 0; i < 26; i++) { sg.beginPath(); sg.moveTo(X.plugR, y(i)); sg.lineTo(X.plugL, y(plug[i])); sg.stroke(); }
+  rot.forEach((r, j) => {
+    const ri = ord[j], tbl = [...ROTORS[cfg.order[ri]].w].map(idx), s = pos[ri] - cfg.rings[ri];
+    for (let c = 0; c < 26; c++) { const o = (((tbl[(((c + s) % 26) + 26) % 26] - s) % 26) + 26) % 26; sg.beginPath(); sg.moveTo(r.right, y(c)); sg.lineTo(r.left, y(o)); sg.stroke(); }
+  });
+  // contact letters
+  sg.font = `400 ${Math.min(10, rh - 1)}px ${cssVar('--mono')}`; sg.fillStyle = muted; sg.textBaseline = 'middle';
+  for (let i = 0; i < 26; i++) { sg.fillText(A[i], X.key, y(i)); }
+  // path
+  if (last) {
+    const c = last.contacts, P = (x, i) => [x, y(i)];
+    const f = [P(X.key - 6, last.input), P(X.plugR, last.input), P(X.plugL, c[0]),
+      P(rot[0].right, c[0]), P(rot[0].left, c[1]), P(rot[1].right, c[1]), P(rot[1].left, c[2]), P(rot[2].right, c[2]), P(rot[2].left, c[3]), P(ukwX, c[3])];
+    const b = [P(ukwX, c[4]), P(rot[2].left, c[4]), P(rot[2].right, c[5]), P(rot[1].left, c[5]), P(rot[1].right, c[6]), P(rot[0].left, c[6]), P(rot[0].right, c[7]),
+      P(X.plugL, c[7]), P(X.plugR, last.output), P(X.key - 6, last.output)];
+    const stroke = (pts, col) => { sg.strokeStyle = col; sg.lineWidth = 2.2; sg.beginPath(); pts.forEach(([px, py], k) => k ? sg.lineTo(px, py) : sg.moveTo(px, py)); sg.stroke(); };
+    stroke(f, acc); stroke(b, ret);
+    sg.strokeStyle = muted; sg.lineWidth = 1.5; sg.beginPath(); sg.moveTo(ukwX, y(c[3])); sg.bezierCurveTo(ukwX - 14, y(c[3]), ukwX - 14, y(c[4]), ukwX, y(c[4])); sg.stroke();
+    sg.font = `700 ${Math.min(11, rh)}px ${cssVar('--mono')}`;
+    sg.fillStyle = acc; sg.fillText(A[last.input], X.key, y(last.input));
+    sg.fillStyle = ret; sg.fillText(A[last.output], X.key, y(last.output));
+  }
+  // rotor edges
+  sg.strokeStyle = muted; sg.lineWidth = 1;
+  rot.forEach(r => { sg.strokeRect(r.left, top - 2, r.right - r.left, h - top - 2); });
+}
+
+// ---------- settings UI ----------
+function fillSelect(el, opts, val) { el.innerHTML = opts.map(o => `<option value="${o.v}">${o.t}</option>`).join(''); el.value = val; }
+[0, 1, 2].forEach(i => {
+  fillSelect($('#r' + i), ORDER_NAMES.map(n => ({ v: n, t: n })), cfg.order[i]);
+  fillSelect($('#g' + i), [...A].map((c, k) => ({ v: k, t: `${c} (${String(k + 1).padStart(2, '0')})` })), 0);
+});
+function readSettings() {
+  const ord = [0, 1, 2].map(i => $('#r' + i).value);
+  if (new Set(ord).size < 3) { $('#plugNote').textContent = '同じローターは2か所に入れられません。'; [0,1,2].forEach(i => $('#r' + i).value = cfg.order[i]); return; }
+  cfg.order = ord; cfg.rings = [0, 1, 2].map(i => +$('#g' + i).value); cfg.reflector = $('#ukw').value;
+  cfg.plugs = $('#plugs').value;
+  const p = plugPerm(cfg.plugs), pr = []; p.forEach((b, a) => { if (b > a) pr.push(A[a] + A[b]); });
+  $('#plugNote').textContent = pr.length ? `接続中 ${pr.length}組：${pr.join(' ')}` : 'プラグなし（全文字そのまま通過）';
+  setNotches(); buildCables(); resetToStart();
+}
+function writeSettingsUI() { [0, 1, 2].forEach(i => { $('#r' + i).value = cfg.order[i]; $('#g' + i).value = cfg.rings[i]; }); $('#ukw').value = cfg.reflector; $('#plugs').value = cfg.plugs; }
+['#r0', '#r1', '#r2', '#g0', '#g1', '#g2', '#ukw'].forEach(s => $(s).addEventListener('change', readSettings));
+$('#plugs').addEventListener('input', readSettings);
+$('#windows').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const i = +b.dataset.r; pos[i] = (pos[i] + +b.dataset.d + 26) % 26; start = pos.slice();
+  lastStep = null; syncRotorTargets(null); render2D();
+});
+$('#bReset').addEventListener('click', () => resetToStart());
+$('#typeForm').addEventListener('submit', e => {
+  e.preventDefault(); const s = $('#typeText').value.toUpperCase().replace(/[^A-Z]/g, ''); $('#typeText').value = '';
+  [...s].forEach((ch, k) => setTimeout(() => pressLetter(ch), k * 260));
+});
+function toggle(btn, fn) { const on = btn.getAttribute('aria-pressed') !== 'true'; btn.setAttribute('aria-pressed', on); fn(on); }
+$('#bExplode').addEventListener('click', e => toggle(e.currentTarget, on => explodeT = on ? 1 : 0));
+$('#bXray').addEventListener('click', e => toggle(e.currentTarget, on => { xray = on; applyXray(); }));
+$('#bIsolate').addEventListener('click', e => toggle(e.currentTarget, on => { isolate = on; applyIsolate(); buildPath(); }));
+$('#bPath').addEventListener('click', e => toggle(e.currentTarget, on => { showPath = on; buildPath(); }));
+document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+window.addEventListener('keydown', e => {
+  if (!$('#guide').hidden || e.target.matches('input,select,textarea') || e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key.toUpperCase(); if (/^[A-Z]$/.test(k)) { e.preventDefault(); pressLetter(k); }
+});
+// click 3D keys
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); let downAt = null;
+canvas.addEventListener('pointerdown', e => downAt = [e.clientX, e.clientY]);
+canvas.addEventListener('pointerup', e => {
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
+  const r = canvas.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1);
+  ray.setFromCamera(ndc, camera); const hit = ray.intersectObjects(keyMeshes)[0];
+  if (hit && keysGroup.visible) pressLetter(hit.object.userData.letter);
+});
+
+// ---------- model self-check ----------
+(function selfCheck() {
+  const base = { order: ['I', 'II', 'III'], reflector: 'B', rings: [0, 0, 0], plugs: '' };
+  const t1 = run(base, [0, 0, 0], 'AAAAA').out;
+  let p = [0, 3, 20]; const ds = []; for (let i = 0; i < 3; i++) { p = step(base, p); ds.push(p.map(x => A[x]).join('')); }
+  let q = [0, 0, 0], n = 0; do { q = step(base, q); n++; } while (q.join() !== '0,0,0' && n < 20000);
+  const e = run({ ...base, plugs: 'AJ SO' }, [0, 0, 0], 'ENIGMA').out, back = run({ ...base, plugs: 'AJ SO' }, [0, 0, 0], e).out;
+  const ok = b => `<span class="ok">${b ? '一致' : '不一致'}</span>`;
+  $('#check').innerHTML = [
+    `I-II-III / AAA / AAAAA → ${t1}　既知値 BDZGO ${ok(t1 === 'BDZGO')}`,
+    `ダブルステップ ADU → ${ds.join(' → ')}　${ok(ds.join() === 'ADV,AEW,BFX')}`,
+    `周期 ${n.toLocaleString()} 打鍵　記事の 26×25×26 ${ok(n === 16900)}`,
+    `ENIGMA → ${e} → ${back}　反転性 ${ok(back === 'ENIGMA')}`,
+  ].join('<br>');
+})();
+
+// ---------- tour (drives the page; any input hands control to the visitor) ----------
+const cursor = $('#cursor'), capEl = $('#caption');
+let touring = false, tourId = 0, idleTimer = null;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function caption(t) { capEl.textContent = t || ''; capEl.classList.toggle('on', !!t); }
+async function moveTo(x, y, id) { cursor.classList.add('on'); cursor.style.left = x + 'px'; cursor.style.top = y + 'px'; await sleep(600); return id === tourId; }
+async function clickAt(x, y, id) { if (!await moveTo(x, y, id)) return false; cursor.classList.remove('click'); void cursor.offsetWidth; cursor.classList.add('click'); await sleep(180); return id === tourId; }
+async function clickEl(el, id) { const r = el.getBoundingClientRect(); if (!await clickAt(r.left + r.width / 2, r.top + r.height / 2, id)) return false; el.click(); return true; }
+function keyScreen(ch) { const v = keyPos[ch].clone().project(camera), r = canvas.getBoundingClientRect(); return [r.left + (v.x + 1) / 2 * r.width, r.top + (1 - v.y) / 2 * r.height]; }
+async function typeWord(word, id, gap = 950) {
+  for (const ch of word) { if (id !== tourId) return false; const [x, y] = keyScreen(ch); if (!await clickAt(x, y, id)) return false; pressLetter(ch); await sleep(gap); }
+  return id === tourId;
+}
+async function setBtn(sel, want, id) { const b = $(sel); if ((b.getAttribute('aria-pressed') === 'true') !== want) return clickEl(b, id); return true; }
+async function tour() {
+  const id = ++tourId; touring = true; $('#mode').innerHTML = '<b>自動ツアー</b>中・触れると操作できます';
+  while (id === tourId) {
+    Object.assign(cfg, { order: ['I', 'II', 'III'], reflector: 'B', rings: [0, 0, 0], plugs: 'AJ SO' }); writeSettingsUI(); readSettings();
+    start = [0, 0, 0]; resetToStart();
+    if (!await setBtn('#bExplode', false, id) || !await setBtn('#bXray', false, id) || !await setBtn('#bIsolate', false, id)) return;
+    setView('hero'); caption('キーを1つ打つたびに右ローターが1目盛り進み、電流の通り道が変わります'); await sleep(1600);
+    if (!await typeWord('ENIGMA', id)) return;
+    caption('同じAを続けて打っても、毎回ちがう文字が光り、A自身は決して光りません'); await sleep(400);
+    if (!await typeWord('AAAA', id, 800)) return;
+    if (!await clickEl(document.querySelector('[data-view="rotors"]'), id)) return;
+    caption('3枚のローターを分解。往路（橙）は右から左へ、反転ローターで折り返して復路（青）で戻ります'); await sleep(900);
+    if (!await setBtn('#bExplode', true, id)) return; await sleep(1200);
+    if (!await typeWord('WETTER', id, 1050)) return;
+    if (!await setBtn('#bExplode', false, id)) return;
+    caption('本体を透かすと、キー → プラグボード → ローター → ランプの全経路が見えます');
+    if (!await clickEl(document.querySelector('[data-view="hero"]'), id)) return;
+    if (!await setBtn('#bXray', true, id)) return; await sleep(700);
+    if (!await typeWord('BERICHT', id, 950)) return;
+    if (!await setBtn('#bXray', false, id)) return;
+    if (!await clickEl(document.querySelector('[data-view="plugs"]'), id)) return;
+    caption('プラグボード：AとJ、SとOをケーブルで入れ替え。ローターの前後で2回効きます'); await sleep(1000);
+    if (!await typeWord('JAS', id, 1100)) return;
+    if (!await clickEl(document.querySelector('[data-view="hero"]'), id)) return;
+    caption('同じ鍵で暗号文を打つと、平文に戻ります（反転性）'); await sleep(600);
+    const cipher = run(cfg, [0, 0, 0], 'ENIGMA').out;
+    if (!await clickEl($('#bReset'), id)) return; await sleep(500);
+    if (!await typeWord(cipher, id, 950)) return;
+    caption(`${cipher} → ${outText}`); await sleep(3000);
+  }
+}
+function stopTour() {
+  if (!touring) { armIdle(); return; }
+  touring = false; tourId++; cursor.classList.remove('on'); caption('');
+  $('#mode').innerHTML = '操作中・25秒放置でツアー再開'; armIdle();
+}
+function armIdle() { clearTimeout(idleTimer); idleTimer = setTimeout(() => { if (!touring && $('#guide').hidden) tour(); else if (!$('#guide').hidden) armIdle(); }, 25000); }
+// ---------- guide ----------
+const guide = $('#guide');
+function openGuide() { stopTour(); guide.hidden = false; $('#bGuideX').focus(); }
+function closeGuide() { guide.hidden = true; $('#bHelp').focus(); armIdle(); }
+$('#bHelp').addEventListener('click', openGuide);
+$('#bGuideX').addEventListener('click', closeGuide);
+guide.addEventListener('click', e => { if (e.target === guide) closeGuide(); });
+$('#bGuideGo').addEventListener('click', () => { closeGuide(); resetToStart(); setView('keys'); });
+window.addEventListener('keydown', e => { if (!guide.hidden && e.key === 'Escape') closeGuide(); }, true);
+['pointerdown', 'wheel', 'keydown', 'touchstart'].forEach(ev => window.addEventListener(ev, e => { if (e.isTrusted) stopTour(); }, { capture: true, passive: true }));
+
+// ---------- loop ----------
+function resize() {
+  const r = canvas.parentElement.getBoundingClientRect();
+  renderer.setSize(r.width, r.height, false); camera.aspect = r.width / r.height;
+  camera.fov = r.width < 560 ? 50 : 36; camera.updateProjectionMatrix(); drawSchematic();
+}
+window.addEventListener('resize', resize);
+let lastT = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - lastT) / 1000); lastT = now;
+  if (camAnim) {
+    camAnim.t = Math.min(1, camAnim.t + dt / 1.1); const e = 1 - Math.pow(1 - camAnim.t, 3);
+    camera.position.lerpVectors(camAnim.from, camAnim.to, e); controls.target.lerpVectors(camAnim.tf, camAnim.tt, e);
+    if (camAnim.t >= 1) camAnim = null;
+  }
+  controls.update();
+  const prevEx = explode; explode += (explodeT - explode) * Math.min(1, dt * 4); if (Math.abs(explodeT - explode) < 1e-3) explode = explodeT;
+  for (const k of ['ukw', 'L', 'M', 'R', 'etw']) {
+    const w = W[k]; w.g.position.x = wheelX(k); w.g.position.y = wheelY();
+    w.angle += (w.target - w.angle) * Math.min(1, dt * 12); w.spin.rotation.x = w.angle;
+  }
+  axle.position.y = wheelY(); axle.scale.y = 1 + explode * 0.95;
+  if (explode !== prevEx) buildPath();
+  for (const ch in keys) { const k = keys[ch]; k.dip = Math.max(0, k.dip - dt * 3.5); k.g.position.y = -Math.sin(Math.min(1, k.dip) * Math.PI) * 0.6; }
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+
+// boot
+setNotches(); buildCables(); readSettings(); resize();
+renderer.compile(scene, camera);
+requestAnimationFrame(frame);
+document.fonts && document.fonts.ready.then(() => drawSchematic());
+// ---------- messages: send / receive ----------
+const PAGE_URL = /github\.io$/.test(location.hostname) ? location.origin + location.pathname : 'https://claude.ai/artifact/Wp2KVMk6WAw6BjsFKsqi12';
+const HEX = 'ABCDEFGHIJKLMNOP';          // one byte = two letters A–P, so any language survives the 26-letter machine
+const toLetters = s => [...new TextEncoder().encode(s)].map(b => HEX[b >> 4] + HEX[b & 15]).join('');
+function fromLetters(L) {
+  if (L.length % 2 || /[^A-P]/.test(L)) throw new Error('key');
+  const bytes = new Uint8Array(L.length / 2);
+  for (let i = 0; i < bytes.length; i++) bytes[i] = HEX.indexOf(L[2 * i]) * 16 + HEX.indexOf(L[2 * i + 1]);
+  return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+}
+const rnd = n => { const a = new Uint32Array(1); crypto.getRandomValues(a); return a[0] % n; };
+function randomKey() {
+  const names = ORDER_NAMES.slice(), order = [];
+  for (let i = 0; i < 3; i++) order.push(names.splice(rnd(names.length), 1)[0]);
+  const free = [...A], pairs = [];
+  for (let i = 0; i < 10; i++) { const a = free.splice(rnd(free.length), 1)[0], b = free.splice(rnd(free.length), 1)[0]; pairs.push(a + b); }
+  return { order, reflector: 'B', rings: [rnd(26), rnd(26), rnd(26)], pos: [rnd(26), rnd(26), rnd(26)], plugs: pairs.join(' ') };
+}
+const keyToCode = k => [k.order.join('-'), k.reflector, k.rings.map(i => A[i]).join(''), k.pos.map(i => A[i]).join(''),
+  (k.plugs.toUpperCase().match(/[A-Z]{2}/g) || []).join('-')].join('/');
+function codeToKey(code) {
+  const p = code.trim().toUpperCase().replace(/\s+/g, '').split('/');
+  if (p.length < 4) throw new Error('format');
+  const order = p[0].split('-');
+  if (order.length !== 3 || order.some(o => !ROTORS[o]) || new Set(order).size < 3) throw new Error('format');
+  if (!REFLECTORS[p[1]] || !/^[A-Z]{3}$/.test(p[2]) || !/^[A-Z]{3}$/.test(p[3])) throw new Error('format');
+  return { order, reflector: p[1], rings: [...p[2]].map(idx), pos: [...p[3]].map(idx), plugs: (p[4] || '').replace(/-/g, ' ') };
+}
+// set the machine to a key and play the first letters through it, so the 3D shows the real work
+let feedId = 0;
+function loadKeyIntoMachine(k) {
+  Object.assign(cfg, { order: k.order.slice(), reflector: k.reflector, rings: k.rings.slice(), plugs: k.plugs });
+  start = k.pos.slice(); writeSettingsUI(); readSettings();
+}
+async function feed(letters) {
+  const id = ++feedId; const n = Math.min(letters.length, 48);
+  for (let i = 0; i < n; i++) { if (id !== feedId) return; pressLetter(letters[i]); await sleep(110); }
+}
+function showTab(which) {
+  const send = which === 'send';
+  $('#tabSend').setAttribute('aria-selected', send); $('#tabRecv').setAttribute('aria-selected', !send);
+  $('#paneSend').hidden = !send; $('#paneRecv').hidden = send;
+}
+$('#tabSend').addEventListener('click', () => showTab('send'));
+$('#tabRecv').addEventListener('click', () => showTab('recv'));
+let sendKey = randomKey();
+function updateCount() { const t = $('#sendText').value; $('#sendCount').textContent = t ? `${t.length}文字 → 暗号文 約${toLetters(t).length}文字` : ''; }
+$('#sendText').addEventListener('input', updateCount); updateCount();
+function encryptNow() {
+  const text = $('#sendText').value.trim();
+  if (!text) { $('#sendCount').textContent = '文章を入れてください'; return; }
+  stopTour();
+  const letters = toLetters(text), cipher = run(sendKey, sendKey.pos, letters).out;
+  const url = `${PAGE_URL}#c-${cipher}`, code = keyToCode(sendKey);
+  $('#shareUrl').value = url; $('#shareKey').value = code;
+  $('#cipherLen').textContent = cipher.length.toLocaleString(); $('#cipherView').textContent = fmt5(cipher);
+  $('#sendOut').hidden = false;
+  ownHash = '#c-' + cipher; try { location.hash = ownHash; } catch (e) {}
+  loadKeyIntoMachine(sendKey); setView('hero'); feed(letters);
+}
+$('#bEncrypt').addEventListener('click', encryptNow);
+$('#bNewKey').addEventListener('click', () => { sendKey = randomKey(); encryptNow(); });
+function flash(t) { $('#copied').textContent = t; clearTimeout(flash.t); flash.t = setTimeout(() => $('#copied').textContent = '', 2500); }
+async function copyText(text, el) {
+  try { await navigator.clipboard.writeText(text); flash('コピーしました'); }
+  catch (e) { if (el) { el.focus(); el.select(); } flash('自動コピーできませんでした。選択された文字をコピーしてください'); }
+}
+document.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', () => { const el = $('#' + b.dataset.copy); copyText(el.value, el); }));
+$('#bCopyAll').addEventListener('click', () => copyText(
+  `エニグマで暗号メッセージを送ります。\n① このURLを開いてください：\n${$('#shareUrl').value}\n② 「受け取る」に次の復号キーを入れて［復号する］：\n${$('#shareKey').value}`, $('#shareUrl')));
+
+function decryptNow() {
+  const err = $('#recvErr'), out = $('#recvPlain'); err.textContent = ''; out.classList.remove('ok');
+  const cipher = $('#recvCipher').value.toUpperCase().replace(/[^A-Z]/g, '');
+  if (!cipher) { err.textContent = '暗号文が入っていません。届いたURLから開くか、貼り付けてください。'; return; }
+  let k; try { k = codeToKey($('#recvKey').value); } catch (e) { err.textContent = '復号キーの形が違います。「II-V-I/B/FKA/PQW/AJ-SO-…」のように、送られた通りに入れてください。'; return; }
+  stopTour();
+  const letters = run(k, k.pos, cipher).out;
+  loadKeyIntoMachine(k); setView('hero'); feed(cipher);
+  try { out.textContent = fromLetters(letters); out.classList.add('ok'); }
+  catch (e) { out.innerHTML = '<span class="hint">読める文章になりませんでした。</span>'; err.textContent = '復号キーが合っていないようです。1文字でも違うと元に戻りません。'; }
+}
+$('#bDecrypt').addEventListener('click', decryptNow);
+$('#recvKey').addEventListener('keydown', e => { if (e.key === 'Enter') decryptNow(); });
+function readHash() {
+  const m = location.hash.match(/^#c-([A-Za-z]+)$/);
+  if (!m) return false;
+  showTab('recv'); $('#recvCipher').value = fmt5(m[1].toUpperCase());
+  $('#recvPlain').innerHTML = '<span class="hint">暗号メッセージが届いています。送り主から受け取った復号キーを入れてください。</span>';
+  return true;
+}
+let ownHash = '';
+window.addEventListener('hashchange', () => { if (location.hash === ownHash) return; if (readHash()) { stopTour(); $('#recvKey').focus(); } });
+
+if (readHash()) { $('#mode').innerHTML = '受信モード・25秒放置でツアー再開'; armIdle(); setTimeout(() => $('#recvKey').focus({ preventScroll: true }), 300); }
+else setTimeout(tour, 600);
+})();
+</script>
+
+</body>
+</html>
