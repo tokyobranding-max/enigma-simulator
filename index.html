@@ -893,7 +893,7 @@ renderer.compile(scene, camera);
 requestAnimationFrame(frame);
 document.fonts && document.fonts.ready.then(() => drawSchematic());
 // ---------- messages: send / receive ----------
-const PAGE_URL = /github\.io$/.test(location.hostname) ? location.origin + location.pathname : 'https://claude.ai/artifact/Wp2KVMk6WAw6BjsFKsqi12';
+const PAGE_URL = /(github\.io|tokyobranding\.org)$/.test(location.hostname) ? location.origin + location.pathname : 'https://claude.ai/artifact/Wp2KVMk6WAw6BjsFKsqi12';
 const HEX = 'ABCDEFGHIJKLMNOP';          // one byte = two letters A–P, so any language survives the 26-letter machine
 const toLetters = s => [...new TextEncoder().encode(s)].map(b => HEX[b >> 4] + HEX[b & 15]).join('');
 function fromLetters(L) {
